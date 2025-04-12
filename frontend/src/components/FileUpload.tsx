@@ -28,20 +28,19 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
 
     setIsLoading(true);
-    // Clear previous errors by passing an empty string
     onUploadError('');
 
+    // Revert to using FormData
     const formData = new FormData();
-    formData.append('audioFile', selectedFile);
+    formData.append('audioFile', selectedFile!);
 
     try {
-      // Use relative path, Vite proxy will handle forwarding
-      const apiUrl = '/api'; // No need for full URL or env var here anymore
-      console.log(`Uploading via Vite proxy to backend path: ${apiUrl}/upload`);
+      const apiUrl = '/api';
+      console.log(`Uploading FormData via Vite proxy to backend path: ${apiUrl}/upload`);
 
-      const response = await fetch(`${apiUrl}/upload`, { // Use relative path
+      const response = await fetch(`${apiUrl}/upload`, {
         method: 'POST',
-        body: formData,
+        body: formData, // Send the FormData object
       });
 
       const result = await response.json();

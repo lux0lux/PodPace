@@ -2,6 +2,7 @@ import { Queue, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'node:path';
+import fs from 'node:fs'; // Import the fs module
 import { type ServeOptions } from 'bun'; // Import ServeOptions type
 
 console.log('Starting backend server...');
@@ -179,10 +180,16 @@ async function handleAdjust(req: Request, jobId: string): Promise<Response> {
 // --- Route Handlers ---
 
 async function handleUpload(req: Request): Promise<Response> {
-    console.log('Handling POST /api/upload');
-    if (req.headers.get('content-type')?.split(';')[0] !== 'multipart/form-data') {
+    console.log('Handling POST /api/upload (FormData -> Stream Write)');
+
+    // Expect multipart/form-data
+    const contentType = req.headers.get('content-type');
+    if (!contentType || !contentType.startsWith('multipart/form-data')) {
         return errorResponse('Invalid content type, expected multipart/form-data', 400);
     }
+
+    let filePath: string | null = null; // Define filePath outside try block for potential cleanup
+    let jobId: string | null = null;    // Define jobId outside try block
 
     try {
         const formData = await req.formData();
@@ -192,18 +199,43 @@ async function handleUpload(req: Request): Promise<Response> {
             return errorResponse('No valid audio file uploaded.', 400);
         }
 
+        // Re-check type from the Blob itself
         if (!audioFile.type || !audioFile.type.startsWith('audio/')) {
-            return errorResponse(`Invalid file type: ${audioFile.type || 'unknown'}. Please upload an audio file.`, 400);
+            return errorResponse(`Invalid file type in form data: ${audioFile.type || 'unknown'}. Please upload an audio file.`, 400);
         }
 
-        const jobId = uuidv4();
+        jobId = uuidv4();
         const originalFilename = audioFile instanceof File ? audioFile.name : 'upload.audio';
-        const fileExtension = path.extname(originalFilename) || '.mp3';
+        const fileExtension = path.extname(originalFilename) || '.mp3'; // Default to mp3 if needed
         const uniqueFilename = `${jobId}${fileExtension}`;
-        const filePath = path.join(UPLOAD_DIR, uniqueFilename);
+        filePath = path.join(UPLOAD_DIR, uniqueFilename);
 
-        console.log(`Generated Job ID: ${jobId}, saving to: ${filePath}`);
-        await Bun.write(filePath, audioFile);
+        console.log(`Generated Job ID: ${jobId}, streaming FormData file to: ${filePath}`);
+
+        // --- Stream the extracted Blob to file using reader/writer ---
+        let writer = null;
+        try {
+            writer = Bun.file(filePath).writer();
+            const reader = audioFile.stream().getReader(); // Get reader from the extracted blob
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    break;
+                }
+                writer.write(value);
+            }
+            await writer.end();
+            console.log(`FormData file stream complete for job ${jobId}. File size: ${audioFile.size}`);
+        } catch (streamError: any) {
+            console.error(`Error writing file stream for job ${jobId}:`, streamError);
+            if (filePath) { // Attempt cleanup only if path was determined
+                 try { await fs.promises.unlink(filePath); } catch { /* ignore cleanup error */ }
+            }
+            throw new Error('Failed to save uploaded file from FormData.');
+        }
+        // --- End of Streaming logic ---
+
+        // File saved, now update status and queue job
         await updateJobStatus(jobId, 'PENDING', { originalFilename, filePath });
 
         await analyzeAudioQueue.add(ANALYZE_QUEUE_NAME, {
@@ -216,8 +248,12 @@ async function handleUpload(req: Request): Promise<Response> {
         return jsonResponse({ job_id: jobId }, 202);
 
     } catch (error: any) {
-        console.error('Error handling upload:', error);
-        return errorResponse('Failed to process upload.', 500);
+        console.error(`Error handling upload for job ${jobId || 'unknown'}:`, error);
+        // Attempt cleanup if filePath was determined before the main error
+        if (filePath) {
+             try { await fs.promises.unlink(filePath); } catch { /* ignore cleanup error */ }
+        }
+        return errorResponse(`Failed to process upload: ${error.message}`, 500);
     }
 }
 
@@ -287,6 +323,8 @@ async function handleDownload(req: Request, jobId: string): Promise<Response> {
 // --- Bun HTTP Server --- //
 const serverOptions: ServeOptions = {
     port: API_PORT,
+    // Set maximum request body size (e.g., 500 MiB)
+    maxRequestBodySize: 500 * 1024 * 1024, // 500 MiB in bytes
     async fetch(req: Request): Promise<Response> {
         const url = new URL(req.url);
         const pathSegments = url.pathname.split('/').filter(Boolean); // e.g., ['api', 'upload']

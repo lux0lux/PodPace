@@ -1,6 +1,9 @@
 # Ignore test audio files
 testAudio/
 
+# Root level dependencies
+node_modules/
+
 # Backend specific
 backend/node_modules/
 backend/uploads/
@@ -21,8 +24,8 @@ backend/*.tsbuildinfo
 backend/.idea/
 
 # Frontend specific (examples)
+frontend/node_modules/
 # frontend/dist/
-# frontend/node_modules/
 # frontend/.env*
 
 # OS specific

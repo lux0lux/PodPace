@@ -13,6 +13,7 @@ export default defineConfig({
         secure: false,      // Don't verify SSL certs if backend were HTTPS (not needed here)
         // Optional: rewrite path if backend expects something different
         // rewrite: (path) => path.replace(/^\/api/, '')
+        proxyTimeout: 300000
       }
     }
   }
