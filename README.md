@@ -60,23 +60,37 @@ Before running the application, ensure you have the following installed on your 
 
 ## Running the Application
 
-1.  **Start Backend Server:**
+The backend consists of the main API server and two background worker processes. You need to run all three concurrently in separate terminals.
+
+1.  **Start Redis:** Ensure your Redis server (e.g., via Docker or local install) is running.
+
+2.  **Start Backend API Server:**
     ```bash
-    cd backend
+    cd PodPace/backend
     bun run index.ts
     ```
-2.  **Start Workers (in separate terminals):**
+    *   This serves the main API endpoints (upload, status, adjust, download).
+    *   Logs will show connection details and incoming requests.
+
+3.  **Start Analyze Worker:**
     ```bash
-    cd backend
-    bun run worker-analyze.ts # (To be created)
+    cd PodPace/backend
+    bun run worker-analyze.ts
     ```
+    *   This worker listens for jobs to analyze uploaded audio using the cloud service.
+    *   Logs will show job processing steps (upload, poll, WPM calculation).
+
+4.  **Start Adjust Worker:**
     ```bash
-    cd backend
-    bun run worker-adjust.ts  # (To be created)
+    cd PodPace/backend
+    bun run worker-adjust.ts
     ```
-3.  **Start Frontend Dev Server (placeholder):**
+    *   This worker listens for jobs to adjust audio speed using ffmpeg/rubberband.
+    *   Logs will show segment extraction, stretching, and concatenation steps.
+
+5.  **Start Frontend Dev Server (placeholder for later):**
     ```bash
-    # cd frontend
+    # cd PodPace/frontend
     # bun run dev
     ```
 
