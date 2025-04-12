@@ -18,23 +18,21 @@ Okay, here is a detailed plan for building the speech normalization web applicat
 *   **Frontend Framework:**
     *   **Framework:** **React**
     *   **Tooling:** **Bun** (Package manager, bundler, development server).
-*   **Audio Processing & ML Libraries (Strategy):**
-    *   **Core Manipulation (Bun/TS):** Leverage **`Bun.spawn`** to call external command-line tools for robust audio operations.
+*   **Audio Processing & Analysis (Strategy):**
+    *   **ASR (Transcription & Word Timestamps) + Diarization (Speaker ID):**
+        *   **Method:** **Cloud-based Service API**.
+        *   **Provider Example:** **AssemblyAI** (Known for accurate ASR potentially based on or exceeding Whisper quality, speaker diarization, and word-level timestamps - all often available through a single API call). Other providers like Google Cloud Speech-to-Text or AWS Transcribe could be alternatives.
+        *   *(Rationale: Offloads complex ML processing, avoids local ML environment setup, provides both ASR and Diarization from one source, requires managing API keys and potential costs).*
+    *   **Core Audio Manipulation (Bun/TS):** Leverage **`Bun.spawn`** to call external command-line tools locally.
         *   **Basic Audio Handling & Segmentation:** **`ffmpeg`** (via `Bun.spawn`). Requires `ffmpeg` installed on the server/container.
         *   **Time-Stretching (Pitch Preserving):** **`rubberband-cli`** (via `Bun.spawn`). Requires `rubberband-cli` installed.
-    *   **Specialized ML Tasks (Python Microservice):** Encapsulate Python-heavy ML tasks into a small, separate Flask/FastAPI microservice called from the Bun backend.
-        *   **ASR (Transcription & Word Timestamps):** **`openai-whisper`** (Python library). The microservice will run Whisper, returning detailed results including word timestamps.
-        *   **Diarization (Speaker Identification):** **`pyannote.audio`** (Python library). The microservice runs diarization.
-        *   *(Rationale: Keeps Python dependencies isolated, avoids potential complexities of Node/Bun wrappers for these specific libraries, allows leveraging mature Python implementations.)*
-    *   **VAD (Voice Activity Detection):** Primarily handled by `pyannote.audio` within the microservice. If needed separately, `ffmpeg`'s `silencedetect` could be used via `Bun.spawn`.
 *   **Task Queue System:**
     *   **Broker:** **Redis** (via `ioredis` or similar Bun-compatible client).
     *   **Queue Library:** **BullMQ**.
 *   **Temporary Storage:**
-    *   **Mechanism:** Server's local filesystem (`Bun.file`, `Bun.write`). Use UUIDs (`crypto.randomUUID()`).
-    *   **State Management:** Redis.
-*   **Python Microservice Framework:** **Flask** or **FastAPI** (lightweight options suitable for this).
-*   **Web Server:** **Bun** (for the main TS app), **Gunicorn/Uvicorn** (for the Python microservice).
+    *   **Mechanism:** Server's local filesystem (`Bun.file`, `Bun.write`) for temporary files needed by `ffmpeg`/`rubberband`. Use UUIDs (`crypto.randomUUID()`).
+    *   **State Management:** Redis (Job status, cloud service job IDs, final results, artifact pointers).
+*   **Web Server:** **Bun** (for the main TS app).
 *   **Reverse Proxy:** **Nginx**.
 
 **III. Backend API Design (Bun/ElysiaJS)**
@@ -78,44 +76,47 @@ Define RESTful endpoints:
 *   **State Management:** Use React's `useState` and `useEffect` hooks for managing component state and side effects (like API calls and polling). For more complex state, consider `useReducer` or a state management library (Context API, Zustand, Redux Toolkit).
 *   **API Calls:** Use `fetch` API or libraries like `axios`.
 
-**V. Backend Workflow & Core Logic (BullMQ Workers & Python Microservice)**
+**V. Backend Workflow & Core Logic (BullMQ Workers)**
 
-1.  **Python Microservice (Flask/FastAPI):**
-    *   Define endpoints like:
-        *   `POST /process_audio`: Accepts an audio file path (accessible by the microservice, e.g., via shared volume in Docker). Runs both `pyannote.audio` diarization and `openai-whisper` transcription (with word timestamps). Returns a JSON containing both diarization segments and detailed ASR results.
-    *   This service needs access to the audio files uploaded via the Bun app.
-
-2.  **`analyzeAudioWorker.ts` (BullMQ Worker - Handles 'analyze' jobs):**
-    *   **Update Status:** Set job status in Redis (`PROCESSING_ANALYSIS_SETUP`).
-    *   **Trigger Microservice:** Make an HTTP POST request to the Python microservice's `/process_audio` endpoint, passing the path to the original audio file.
-    *   **Await Results:** Wait for the JSON response containing diarization and ASR data.
-    *   **Update Status:** `PROCESSING_WPM_CALCULATION`.
-    *   **Parse Results:** Extract speaker segments and word timestamps from the microservice response.
-    *   **Calculate Average WPM per Speaker:** Implement the WPM calculation logic *in TypeScript* using the received diarization and ASR data.
-    *   **Store Results:** Save speaker WPM data, and references/results from the microservice (diarization/ASR details needed for adjustment) in Redis.
+1.  **`analyzeAudioWorker.ts` (BullMQ Worker - Handles 'analyze' jobs):**
+    *   **Update Status:** Set job status in Redis (`PROCESSING_UPLOAD_CLOUD`).
+    *   **Upload to Cloud Provider:**
+        *   Use the chosen provider's SDK or a direct HTTP request (e.g., using `fetch` in Bun) to upload the `original_file_path` to the cloud service (e.g., AssemblyAI). Get back a cloud job identifier (e.g., transcript ID). Store this ID in Redis.
+    *   **Trigger Cloud Processing:**
+        *   Make an API call to the cloud provider to start the transcription/diarization job on the uploaded audio. Ensure parameters request **speaker diarization** and **word-level timestamps**.
+        *   **Update Status:** `PROCESSING_CLOUD_ANALYSIS`. Store cloud provider's job ID in Redis.
+    *   **Poll for Cloud Results:**
+        *   Periodically make API calls to the cloud provider's status endpoint using the cloud job ID. Check if the job is complete. (Implement polling with appropriate delays and backoff).
+    *   **Retrieve & Parse Results:**
+        *   Once complete, fetch the full results JSON from the cloud provider. This should contain the transcript, word timings, and speaker labels associated with segments/words.
+        *   **Update Status:** `PROCESSING_WPM_CALCULATION`.
+        *   Parse the provider's JSON response to extract speaker segments (start time, end time, speaker label) and word timestamps.
+    *   **Calculate Average WPM per Speaker:**
+        *   Implement the WPM calculation logic in TypeScript using the diarization segments and word timestamps from the cloud service response.
+    *   **Store Results:** Save calculated speaker WPM data, and necessary cloud results (or pointers) for the adjustment phase in Redis.
     *   **Finalize Analysis:** Update Redis: `job:<job_id>:artifacts = { ... }`, `job:<job_id>:status = READY_FOR_INPUT`.
-    *   *Error Handling:* Catch errors during the microservice call or processing, update status to `FAILED`.
+    *   *Error Handling:* Catch errors during API calls (upload, processing request, polling, result fetching), check for error statuses from the cloud provider, update job status to `FAILED` in Redis.
 
-3.  **`adjustAudioWorker.ts` (BullMQ Worker - Handles 'adjust' jobs):**
+2.  **`adjustAudioWorker.ts` (BullMQ Worker - Handles 'adjust' jobs):**
     *   **Update Status:** `PROCESSING_ADJUSTMENT`.
-    *   **Load Data:** Retrieve original path, diarization results (from Redis, originating from the microservice), user targets, etc.
-    *   **Prepare Segments:** Reconstruct timeline (speech segments from diarization, silence gaps).
-    *   **Process Each Segment (using `Bun.spawn`):**
+    *   **Load Data:** Retrieve original path, diarization results (from Redis, originating from the cloud service), user targets, etc.
+    *   **Prepare Segments:** Reconstruct timeline (speech segments based on cloud diarization results, silence gaps derived from timestamps).
+    *   **Process Each Segment (using `Bun.spawn` for `ffmpeg`/`rubberband`):**
         *   Initialize list for processed segment file paths.
         *   Iterate through timeline:
             *   **If Speech Segment:**
                 *   Get `speaker_id`, lookup `target_wpm`, calculate `scalar`.
-                *   **Extract Chunk:** Use `Bun.spawn` -> `ffmpeg` (`ffmpeg -i input.mp3 -ss start -to end -c copy temp_segment.wav`). *Use WAV intermediate for rubberband.*
-                *   **Time-Stretch:** Use `Bun.spawn` -> `rubberband-cli` (`rubberband --pitch --tempo scalar temp_segment.wav stretched_segment.wav`).
+                *   **Extract Chunk:** `Bun.spawn` -> `ffmpeg` (`ffmpeg -i input.mp3 -ss start -to end -c copy temp_segment.wav`).
+                *   **Time-Stretch:** `Bun.spawn` -> `rubberband-cli` (`rubberband --pitch --tempo scalar temp_segment.wav stretched_segment.wav`).
                 *   Add path of `stretched_segment.wav` to list. Clean up `temp_segment.wav`.
             *   **If Silence/Other Segment:**
-                *   **Extract/Generate:** Use `Bun.spawn` -> `ffmpeg` to extract or create silence/original audio segment.
+                *   **Extract/Generate:** `Bun.spawn` -> `ffmpeg`.
                 *   Add path to list.
-    *   **Reconstruct Audio (using `Bun.spawn`):**
+    *   **Reconstruct Audio (using `Bun.spawn` for `ffmpeg`):**
         *   **Update Status:** `PROCESSING_RECONSTRUCTION`.
-        *   **Create Concat List:** Generate a text file listing the `stretched_segment.wav` files (required by `ffmpeg` concat demuxer).
-        *   **Concatenate:** Use `Bun.spawn` -> `ffmpeg` (`ffmpeg -f concat -safe 0 -i filelist.txt -c copy final_output.mp3`). Choose final codec/bitrate.
-        *   Clean up intermediate segment files and list file.
+        *   **Create Concat List:** Generate file listing segments.
+        *   **Concatenate:** `Bun.spawn` -> `ffmpeg` (`ffmpeg -f concat ...`).
+        *   Clean up intermediate files.
     *   **Finalize:**
         *   Store output path in Redis.
         *   **Update Status:** `COMPLETE`.
@@ -124,17 +125,16 @@ Define RESTful endpoints:
 **VI. Deployment Considerations**
 
 *   **Containerization (Docker Compose):**
-    *   `bun-api`: Bun API server (ElysiaJS/native).
-    *   `bun-worker`: BullMQ worker(s). **Must have `ffmpeg` and `rubberband-cli` installed.**
-    *   `python-ml`: Python microservice (Flask/FastAPI). **Must have `python`, `pip`, `ffmpeg` (often needed by audio libs), `pyannote.audio`, `openai-whisper`, and their dependencies (incl. PyTorch).** Consider GPU support if needed/available.
+    *   `bun-api`: Bun API server (ElysiaJS/native). Needs cloud provider API key access.
+    *   `bun-worker`: BullMQ worker(s). **Must have `ffmpeg` and `rubberband-cli` installed.** Needs cloud provider API key access.
     *   `redis`: Redis container.
     *   `nginx`: Nginx container.
-    *   **Shared Volume:** Configure a shared Docker volume mounted to `/app/uploads` (or similar) in `bun-api`, `bun-worker`, and `python-ml` containers so they can all access the uploaded and intermediate audio files using consistent paths.
+*   **Cloud Provider Configuration:**
+    *   Requires API keys/credentials for the chosen service (e.g., AssemblyAI). Store these securely (e.g., environment variables, secrets management) and make them available to the `bun-api` and `bun-worker` containers.
 *   **Nginx Configuration:**
     *   Serve static React files.
     *   Proxy `/api/` to `bun-api`.
-    *   (Optional but recommended) Proxy `/ml/` (or similar) to `python-ml`, so the Bun backend calls `http://python-ml:port/process_audio` via internal Docker networking.
-*   **Resources:** The `python-ml` container will be resource-intensive (CPU/RAM, potentially GPU). `bun-worker` needs resources for `ffmpeg`/`rubberband`.
+*   **Resources:** `bun-worker` needs resources for `ffmpeg`/`rubberband`. Cloud costs depend on provider pricing and usage.
 *   **Scalability:** Celery workers can be scaled horizontally (run more worker containers) to handle more concurrent processing jobs.
 *   **Cleanup:** Implement a strategy (e.g., a scheduled Celery task or a cron job) to delete old temporary files and Redis job entries after a certain period (e.g., 24 hours) to prevent disk/memory exhaustion.
 
@@ -142,12 +142,13 @@ Define RESTful endpoints:
 
 *   **Backend:** Wrap processing steps in try/except blocks. If an error occurs in a Celery task, update the job status to `FAILED` in Redis and log the error details. Include a user-friendly error message if possible.
 *   **Frontend:** Check for `FAILED` status during polling. Display the error message from the backend. Provide clear feedback during upload and processing stages. Disable buttons appropriately to prevent conflicting actions. Handle network errors during API calls.
+*   **Include specific handling for cloud API rate limits, errors, and job failures.**
 
 **VIII. Security**
 
 *   **Input Validation:** Sanitize file uploads (check types, potentially size limits). Validate data received in API requests (e.g., target WPMs are numbers within a reasonable range).
 *   **File Storage:** Use UUIDs for file/directory names to prevent clashes or guessing. Store temporary files outside the web root. Ensure appropriate file permissions.
 *   **Dependencies:** Keep all libraries updated to patch security vulnerabilities.
-*   **(Unchanged)** Pay attention to `Bun.spawn` arguments and shared volume permissions.
+*   **Protect cloud API keys diligently.**
 
-This revised plan clearly delegates core audio slicing/stretching/concatenation to `ffmpeg` and `rubberband-cli` called via `Bun.spawn` from the TypeScript workers. It consolidates the complex, Python-native ML tasks (ASR with Whisper, Diarization with Pyannote) into a dedicated microservice, simplifying the Bun application's direct dependencies.
+This version focuses the backend work on interacting with the cloud API for the heavy ML lifting and using local, efficient tools (`ffmpeg`, `rubberband`) via `Bun.spawn` for the audio manipulation tasks.

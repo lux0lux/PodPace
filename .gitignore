@@ -1,0 +1,29 @@
+# Ignore test audio files
+testAudio/
+
+# Backend specific
+backend/node_modules/
+backend/uploads/
+backend/output/
+backend/temp_adjust/
+backend/.env*
+backend/out/
+backend/dist/
+backend/*.tgz
+backend/coverage/
+backend/*.lcov
+backend/logs/
+backend/*.log
+backend/report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+backend/.eslintcache
+backend/.cache
+backend/*.tsbuildinfo
+backend/.idea/
+
+# Frontend specific (examples)
+# frontend/dist/
+# frontend/node_modules/
+# frontend/.env*
+
+# OS specific
+.DS_Store
