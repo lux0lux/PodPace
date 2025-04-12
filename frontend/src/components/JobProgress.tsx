@@ -8,8 +8,8 @@ interface JobProgressProps {
 
 const JobProgress: React.FC<JobProgressProps> = ({ jobId, onStatusUpdate, currentStatus }) => {
   const [error, setError] = useState<string | null>(null);
-  // Use `number` for interval ID, compatible with browser environments
-  const intervalRef = useRef<number | null>(null);
+  // Use ReturnType<typeof setInterval> for the correct interval ID type
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFetching = useRef<boolean>(false); // Tracks if a fetch is currently in progress
   const [isPollingActive, setIsPollingActive] = useState<boolean>(false); // Controls the interval lifecycle
 

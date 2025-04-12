@@ -2,6 +2,8 @@
 
 This application allows users to upload podcast audio files, analyze speaker WPM, and adjust speech speed per speaker.
 
+I made this because listening to a podcast at 2x speed with Larry Summers was unbearable, he was so slow and going higher made other people too hard to understand
+
 ## Prerequisites
 
 Before running the application, ensure you have the following installed on your system:
@@ -48,7 +50,7 @@ Before running the application, ensure you have the following installed on your 
     # REDIS_PASSWORD= (optional)
 
     # Cloud ASR/Diarization Provider (e.g., AssemblyAI)
-    ASSEMBLYAI_API_KEY=YOUR_ASSEMBLYAI_API_KEY
+    ASSEMBLYAI_API_KEY=<YOUR_ASSEMBLYAI_API_KEY>
 
     # Define upload/output directories (optional, defaults are within backend/)
     # UPLOAD_DIR=./uploads
@@ -62,35 +64,15 @@ Before running the application, ensure you have the following installed on your 
 
 ## Running the Application
 
-The application consists of a backend (API server + 2 workers) and a frontend.
+This command uses `concurrently` to start the backend API, both backend workers, and the frontend development server all at once.
 
 1.  **Start Redis:** Ensure your Redis server is running.
 
-2.  **Start Backend Components (in separate terminals):**
-    *   API Server:
-        ```bash
-        cd PodPace/backend
-        bun run index.ts
-        ```
-    *   Analyze Worker:
-        ```bash
-        cd PodPace/backend
-        bun run worker-analyze.ts
-        ```
-    *   Adjust Worker:
-        ```bash
-        cd PodPace/backend
-        bun run worker-adjust.ts
-        ```
-
-3.  **Start Frontend Dev Server (in a separate terminal):**
+2.  **Start All Services:**
+    From the root `PodPace/` directory, run:
     ```bash
-    cd PodPace/frontend
     bun run dev
     ```
-    *   This will start the Vite development server, typically on `http://localhost:5173`.
-    *   Open the URL provided in the terminal output in your web browser.
-
-## Development
-
-(Details to be added later)
+    *   You will see interleaved logs from all four processes in your terminal.
+    *   The frontend development server typically runs on `http://localhost:5173`.
+    *   Open the URL provided for the frontend dev server in your web browser.

@@ -1,0 +1,20 @@
+{
+  "name": "podpace",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start:api": "cd backend && bun run index.ts",
+    "start:worker:analyze": "cd backend && bun run worker-analyze.ts",
+    "start:worker:adjust": "cd backend && bun run worker-adjust.ts",
+    "start:frontend": "cd frontend && bun run dev",
+    "dev": "concurrently \"bun run start:api\" \"bun run start:worker:analyze\" \"bun run start:worker:adjust\" \"bun run start:frontend\""
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.9",
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
