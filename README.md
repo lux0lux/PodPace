@@ -8,6 +8,7 @@ I made this because listening to a podcast at 2x speed with Larry Summers was un
 
 Before running the application, ensure you have the following installed on your system:
 
+*  **Assembly.ai:** Sign up for the free tier and get an api key
 *   **Bun:** Follow the installation instructions at [https://bun.sh/docs/installation](https://bun.sh/docs/installation)
 *   **ffmpeg:** Required for audio file manipulation.
     *   Debian/Ubuntu: `sudo apt update && sudo apt install ffmpeg`
